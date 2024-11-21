@@ -1,11 +1,12 @@
 const express = require('express');
 const mysql = require('mysql2');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
 const app = express();
 app.use(express.json());
 
-// MySQL database connection
 const db = mysql.createConnection({
     host: 'localhost',
     user: 'root',
@@ -21,8 +22,24 @@ db.connect(err => {
     console.log('Connected to MySQL');
 });
 
-// Add assignments for a course
-app.post('/assignments/:courseId', async (req, res) => {
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).send('Access Denied: No Token Provided');
+    }
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).send('Invalid Token');
+        }
+        req.user = user;
+        req.token = token;
+        next();
+    });
+};
+
+app.post('/assignments/:courseId', authenticateToken, async (req, res) => {
     const courseId = req.params.courseId;
     const { assignmentDescription, startDate, endDate } = req.body;
 
@@ -32,7 +49,7 @@ app.post('/assignments/:courseId', async (req, res) => {
 
     try {
         // Fetch students from the API
-        const response = await axios.get(`http://localhost:8081/api/getStudentsInCourse/${courseId}`);
+        const response = await axios.get(`http://localhost:8081/api/getStudentsInCourse/${courseId}`, { headers: { Authorization: `Bearer ${req.token}` }});
         const students = response.data;
 
         if (!students.length) {
@@ -44,7 +61,7 @@ app.post('/assignments/:courseId', async (req, res) => {
             if (student.enrollmentStatus === 'ENROLLED' && student.coursePaymentStatus) {
                 const sql = `
                     INSERT INTO assignments (
-                        student_id, course_id, assignment_description, start_date, end_date
+                        student_username, course_id, assignment_description, start_date, end_date
                     ) VALUES (?, ?, ?, ?, ?)
                 `;
                 const values = [
@@ -73,7 +90,7 @@ app.post('/assignments/:courseId', async (req, res) => {
 });
 
 // Get assignments by course
-app.get('/assignments/course/:courseId', (req, res) => {
+app.get('/assignments/course/:courseId', authenticateToken, (req, res) => {
     const courseId = req.params.courseId;
 
     const sql = `
@@ -90,14 +107,14 @@ app.get('/assignments/course/:courseId', (req, res) => {
 });
 
 // Get assignments by student
-app.get('/assignments/student/:studentId', (req, res) => {
-    const studentId = req.params.studentId;
+app.get('/assignments/student/:studentUserName',authenticateToken, (req, res) => {
+    const studentUserName = req.params.studentUserName;
 
     const sql = `
         SELECT * FROM assignments
-        WHERE student_id = ?
+        WHERE student_username = ?
     `;
-    db.query(sql, [studentId], (err, results) => {
+    db.query(sql, [studentUserName], (err, results) => {
         if (err) {
             console.error('Error fetching assignments:', err);
             return res.status(500).send('An error occurred while fetching assignments');
@@ -107,6 +124,6 @@ app.get('/assignments/student/:studentId', (req, res) => {
 });
 
 // Start the server
-app.listen(3000, () => {
-    console.log('Assignments microservice running on port 3000');
+app.listen(3001, () => {
+    console.log('Assignments microservice running on port 3001');
 });

@@ -25,12 +25,29 @@ app.get('/api/getStudentsInCourse/:courseId', (req, res) => {
                 discontinueReason: null
             },
             {
+                username: "student1",
+                courseId: "course2",
+                enrollmentStatus: "ENROLLED",
+                coursePaymentStatus: true,
+                discontinueReason: null
+            },
+            {
                 username: "student3",
                 courseId: "course1",
                 enrollmentStatus: "DISCONTINUED",
                 coursePaymentStatus: false,
                 discontinueReason: "Personal reasons"
             }
+        ]);
+    } else if (courseId === 'course2') {
+        return res.json([
+            {
+                username: "student1",
+                courseId: "course2",
+                enrollmentStatus: "ENROLLED",
+                coursePaymentStatus: true,
+                discontinueReason: null
+            },
         ]);
     }
 
